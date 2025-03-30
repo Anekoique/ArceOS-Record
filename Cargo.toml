@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "axorigin",
+    "axhal", "axconfig", "spinlock", "axsync",
+]
+
+[profile.release]
+lto = true
