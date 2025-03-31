@@ -1,0 +1,8 @@
+[package]
+name = "axruntime"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axhal = { path = "../axhal" }
+axalloc = { path = "../axalloc" }

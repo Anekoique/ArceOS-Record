@@ -4,6 +4,7 @@ TARGET := riscv64gc-unknown-none-elf
 SMP ?= 1
 LOG ?= warn
 FEATURES ?=
+MOD ?=
 
 # Utility definitions and functions
 GREEN_C := \033[92;1m
@@ -63,9 +64,18 @@ clean:
 		@rm -f ./qemu.log
 
 test:
-		cargo test --workspace --exclude "axorigin" -- --nocapture
+		cargo test --workspace --exclude "axorigin" --exclude "axruntime" --exclude "axstd" -- --nocapture
+
+test_mod:
+ifndef MOD
+		@printf "    $(YELLOW_C)Error$(END_C): Please specify a module using MOD=<module_name>\n"
+		@printf "    Example: make test_mod MOD=axhal\n"
+else
+		@printf "    $(GREEN_C)Testing$(END_C) module: $(MOD)\n"
+		RUSTFLAGS= cargo test --package $(MOD) -- --nocapture
+endif
 
 FORCE:
 		@:
 
-.PHONY: all build disasm run justrun test clean FORCE
+.PHONY: all build disasm run justrun test test_mod clean FORCE
