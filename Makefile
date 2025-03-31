@@ -30,7 +30,7 @@ OUT_DIR ?= target/$(TARGET)/release
 OUT_ELF := $(OUT_DIR)/$(APP_NAME)
 OUT_BIN := $(OUT_DIR)/$(APP_NAME).bin
 
-ifeq ($(filter $(MAKECMDGOALS),test),)  # not run `cargo test`
+ifeq ($(filter test test_mod,$(MAKECMDGOALS)),)  # not run `cargo test` 或 `cargo test_mod`
 RUSTFLAGS := -C link-arg=-T$(LD_SCRIPT) -C link-arg=-no-pie
 export RUSTFLAGS
 endif
@@ -72,7 +72,7 @@ ifndef MOD
 		@printf "    Example: make test_mod MOD=axhal\n"
 else
 		@printf "    $(GREEN_C)Testing$(END_C) module: $(MOD)\n"
-		RUSTFLAGS= cargo test --package $(MOD) -- --nocapture
+		cargo test --package $(MOD) -- --nocapture
 endif
 
 FORCE:
