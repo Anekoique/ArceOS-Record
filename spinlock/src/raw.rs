@@ -9,8 +9,8 @@ pub struct SpinRawGuard<T> {
     data: *mut T,
 }
 
-unsafe impl<T> Sync for SpinRaw<T> {}
-unsafe impl<T> Send for SpinRaw<T> {}
+unsafe impl<T> Sync for SpinRaw<T> {} // 跨线程共享
+unsafe impl<T> Send for SpinRaw<T> {} // 跨线程传递
 
 impl<T> SpinRaw<T> {
     #[inline(always)]
