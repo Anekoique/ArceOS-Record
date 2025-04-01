@@ -1,0 +1,7 @@
+[package]
+name = "axdtb"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axconfig = { path = "../axconfig" }

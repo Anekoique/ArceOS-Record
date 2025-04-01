@@ -6,3 +6,6 @@ edition = "2024"
 [dependencies]
 axhal = { path = "../axhal" }
 axalloc = { path = "../axalloc" }
+axlog = { path = "../axlog" }
+axconfig = { path = "../axconfig" }
+axdtb = { path = "../axdtb" }

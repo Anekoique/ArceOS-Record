@@ -28,3 +28,11 @@ pub const fn is_aligned(addr: usize, align: usize) -> bool {
 pub const fn phys_pfn(pa: usize) -> usize {
     pa >> PAGE_SHIFT
 }
+#[inline]
+pub const fn phys_to_virt(pa: usize) -> usize {
+    pa.wrapping_add(PHYS_VIRT_OFFSET)
+}
+#[inline]
+pub const fn virt_to_phys(va: usize) -> usize {
+    va.wrapping_sub(PHYS_VIRT_OFFSET)
+}

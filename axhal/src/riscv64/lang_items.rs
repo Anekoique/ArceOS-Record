@@ -1,6 +1,8 @@
+use axlog::error;
 use core::panic::PanicInfo;
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
-    loop {}
+    error!("{}", _info);
+    super::misc::terminate()
 }
