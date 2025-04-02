@@ -1,6 +1,10 @@
 #![no_std]
 
+use axconfig::{SIZE_2M, phys_to_virt};
 pub use axhal::ax_println as println;
+use axhal::mem::{MemRegion, free_regions, kernel_image_regions};
+use axsync::BootOnceCell;
+use page_table::{PAGE_KERNEL_RW, PageTable};
 
 #[macro_use]
 extern crate axlog;
@@ -23,7 +27,7 @@ pub extern "C" fn rust_main(hartid: usize, dtb: usize) -> ! {
     info!("Logging is enabled.");
     info!("Primary CPU {} started, dtb = {:#x}.", hartid, dtb);
     // Parse fdt for early memory info
-    let dtb_info = match parse_dtb(dtb.into()) {
+    let dtb_info = match parse_dtb(dtb) {
         Ok(info) => info,
         Err(err) => panic!("Bad dtb {:?}", err),
     };
@@ -32,15 +36,45 @@ pub extern "C" fn rust_main(hartid: usize, dtb: usize) -> ! {
         "Memory: {:#x}, size: {:#x}",
         dtb_info.memory_addr, dtb_info.memory_size
     );
+    let phys_memory_size = dtb_info.memory_size;
     info!("Virtio_mmio[{}]:", dtb_info.mmio_regions.len());
     for r in &dtb_info.mmio_regions {
         info!("\t{:#x}, size: {:#x}", r.0, r.1);
     }
 
+    info!("Initialize kernel page table...");
+    remap_kernel_memory(dtb_info);
+
+    info!("Initialize formal allocators ...");
+    for r in free_regions(phys_memory_size) {
+        axalloc::final_init(phys_to_virt(r.paddr), r.size);
+    }
     unsafe {
         main();
     }
     axhal::terminate();
+}
+
+fn remap_kernel_memory(dtb: DtbInfo) {
+    let mmio_regions = dtb.mmio_regions.iter().map(|reg| MemRegion {
+        paddr: reg.0,
+        size: reg.1,
+        flags: PAGE_KERNEL_RW,
+        name: "mmio",
+    });
+
+    let regions = kernel_image_regions()
+        .chain(free_regions(dtb.memory_size))
+        .chain(mmio_regions);
+
+    let mut kernel_page_table = PageTable::alloc_table(0);
+    for r in regions {
+        let _ = kernel_page_table.map(phys_to_virt(r.paddr), r.paddr, r.size, SIZE_2M, r.flags);
+    }
+
+    static KERNEL_PAGE_TABLE: BootOnceCell<PageTable> = BootOnceCell::new();
+    KERNEL_PAGE_TABLE.init(kernel_page_table);
+    unsafe { axhal::write_page_table_root(KERNEL_PAGE_TABLE.get().root_paddr()) };
 }
 
 extern crate alloc;
@@ -48,7 +82,6 @@ extern crate alloc;
 use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::vec::Vec;
-use axconfig::phys_to_virt;
 use axdtb::SliceRead;
 use core::cell::RefCell;
 use core::str;
@@ -77,7 +110,7 @@ fn parse_dtb(dtb_pa: usize) -> axdtb::DeviceTreeResult<DtbInfo> {
 
     // 创建适配器闭包
     let temp_data_clone = temp_data.clone();
-    let mut cb = move |name: String,
+    let mut cb = move |_name: String,
                        addr_cells: usize,
                        size_cells: usize,
                        props: Vec<axdtb::DeviceTreeProperty>| {
@@ -122,7 +155,7 @@ fn parse_dtb(dtb_pa: usize) -> axdtb::DeviceTreeResult<DtbInfo> {
         }
     };
 
-    let dt = axdtb::DeviceTree::init(dtb_va.into())?;
+    let dt = axdtb::DeviceTree::init(dtb_va)?;
     dt.parse(dt.off_struct, 0, 0, &mut cb)?;
 
     // 从Rc<RefCell<>>中提取结果

@@ -1,10 +1,12 @@
 mod boot;
 pub mod console;
 mod lang_items;
+pub mod mem;
 mod misc;
 mod paging;
 pub mod time;
 pub use misc::terminate;
+pub use paging::write_page_table_root;
 
 unsafe extern "C" fn rust_entry(_hartid: usize, _dtb: usize) {
     unsafe extern "C" {

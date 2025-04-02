@@ -29,6 +29,10 @@ pub const fn phys_pfn(pa: usize) -> usize {
     pa >> PAGE_SHIFT
 }
 #[inline]
+pub const fn pfn_phys(pfn: usize) -> usize {
+    pfn << PAGE_SHIFT
+}
+#[inline]
 pub const fn phys_to_virt(pa: usize) -> usize {
     pa.wrapping_add(PHYS_VIRT_OFFSET)
 }

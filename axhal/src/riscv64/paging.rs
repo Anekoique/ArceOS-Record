@@ -19,9 +19,21 @@ pub unsafe fn init_boot_page_table() {
 }
 
 pub unsafe fn init_mmu() {
-    let page_table_root = boot_page_table as usize;
     unsafe {
-        satp::set(satp::Mode::Sv39, 0, phys_pfn(page_table_root));
+        write_page_table_root(boot_page_table as usize);
+    }
+}
+
+/// Writes the physical address of the page table root to the SATP register.
+///
+/// # Safety
+///
+/// The caller must ensure that `pa` points to a valid page table structure
+/// that is properly initialized and aligned. Incorrect page tables can cause
+/// memory access violations and system crashes.
+pub unsafe fn write_page_table_root(pa: usize) {
+    unsafe {
+        satp::set(satp::Mode::Sv39, 0, phys_pfn(pa));
         riscv::asm::sfence_vma_all();
     }
 }

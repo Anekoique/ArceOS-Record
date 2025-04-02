@@ -9,3 +9,5 @@ axalloc = { path = "../axalloc" }
 axlog = { path = "../axlog" }
 axconfig = { path = "../axconfig" }
 axdtb = { path = "../axdtb" }
+axsync = { path = "../axsync" }
+page_table = { path = "../page_table" }
