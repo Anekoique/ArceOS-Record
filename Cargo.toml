@@ -3,7 +3,7 @@ resolver = "2"
 
 members = [
     "axorigin",
-    "axhal", "axconfig", "spinlock", "axsync", "page_table", "axalloc", "axruntime", "axstd", "axlog", "axdtb", "buddy_allocator", "bitmap_allocator",
+    "axhal", "axconfig", "spinlock", "axsync", "page_table", "axalloc", "axruntime", "axstd", "axlog", "axdtb", "buddy_allocator", "bitmap_allocator", "axtask",
 ]
 
 [profile.release]
