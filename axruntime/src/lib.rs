@@ -26,6 +26,7 @@ pub extern "C" fn rust_main(hartid: usize, dtb: usize) -> ! {
     axlog::set_max_level(option_env!("LOG").unwrap_or(""));
     info!("Logging is enabled.");
     info!("Primary CPU {} started, dtb = {:#x}.", hartid, dtb);
+
     // Parse fdt for early memory info
     let dtb_info = match parse_dtb(dtb) {
         Ok(info) => info,

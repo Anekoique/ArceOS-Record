@@ -28,6 +28,7 @@ impl<const ORDER: usize> Heap<ORDER> {
             total: 0,
         }
     }
+
     pub const fn empty() -> Self {
         Self::new()
     }
@@ -112,6 +113,7 @@ impl<const ORDER: usize> Heap<ORDER> {
         }
         Err(AllocError::NoMemory)
     }
+
     pub fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
         let size = max(
             layout.size().next_power_of_two(),
@@ -147,6 +149,7 @@ impl<const ORDER: usize> Heap<ORDER> {
         self.used -= layout.size();
         self.allocated -= size;
     }
+
     pub fn stats_total_bytes(&self) -> usize {
         self.total
     }

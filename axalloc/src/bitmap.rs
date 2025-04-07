@@ -16,6 +16,7 @@ impl BitmapPageAllocator {
             inner: BitAlloc1M::DEFAULT,
         }
     }
+
     pub fn init(&mut self, start: usize, size: usize) {
         let end = axconfig::align_down(start + size, PAGE_SIZE);
         let start = axconfig::align_up(start, PAGE_SIZE);
@@ -47,6 +48,7 @@ impl BitmapPageAllocator {
         .map(|pos| NonNull::new(pos as *mut u8).unwrap())
         .ok_or(AllocError::NoMemory)
     }
+
     pub fn dealloc_pages(&mut self, pos: usize, num_pages: usize) {
         let idx = (pos - self.base) / PAGE_SIZE;
         for i in 0..num_pages {

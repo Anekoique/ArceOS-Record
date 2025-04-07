@@ -57,6 +57,7 @@ impl GlobalAllocator {
         self.byte_alloc.lock().init(heap_ptr, MIN_HEAP_SIZE);
         self.finalized.init(true);
     }
+
     fn alloc_bytes(&self, layout: Layout) -> *mut u8 {
         if !self.finalized.is_init() {
             return self
@@ -88,6 +89,7 @@ impl GlobalAllocator {
             }
         }
     }
+
     fn dealloc_bytes(&self, ptr: *mut u8, layout: Layout) {
         if self.finalized.is_init() {
             self.byte_alloc
@@ -99,6 +101,7 @@ impl GlobalAllocator {
                 .dealloc_bytes(NonNull::new(ptr).expect("dealloc null ptr"), layout)
         }
     }
+
     fn alloc_pages(&self, layout: Layout) -> *mut u8 {
         let ret = if self.finalized.is_init() {
             self.page_alloc.lock().alloc_pages(layout)
@@ -112,6 +115,7 @@ impl GlobalAllocator {
             alloc::alloc::handle_alloc_error(layout)
         }
     }
+
     fn dealloc_pages(&self, ptr: *mut u8, layout: Layout) {
         if self.finalized.is_init() {
             self.page_alloc

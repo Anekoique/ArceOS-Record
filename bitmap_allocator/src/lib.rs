@@ -20,6 +20,7 @@ pub trait BitAlloc: Default {
     /// The bitmap has a total of CAP bits, numbered from 0 to CAP-1 inclusively.
     const CAP: usize;
     const DEFAULT: Self;
+
     fn alloc(&mut self) -> Option<usize>;
     fn alloc_contiguous(&mut self, size: usize, align_log2: usize) -> Option<usize>;
     fn next(&self, key: usize) -> Option<usize>;
@@ -33,10 +34,12 @@ pub trait BitAlloc: Default {
 // bitmap_allocator/src/lib.rs
 impl<T: BitAlloc> BitAlloc for BitAllocCascade16<T> {
     const CAP: usize = T::CAP * 16;
+
     const DEFAULT: Self = BitAllocCascade16 {
         bitset: 0,
         sub: [T::DEFAULT; 16],
     };
+
     fn alloc(&mut self) -> Option<usize> {
         if !self.is_empty() {
             let i = self.bitset.trailing_zeros() as usize;
@@ -47,6 +50,7 @@ impl<T: BitAlloc> BitAlloc for BitAllocCascade16<T> {
             None
         }
     }
+
     fn alloc_contiguous(&mut self, size: usize, align_log2: usize) -> Option<usize> {
         if let Some(base) = find_contiguous(self, Self::CAP, size, align_log2) {
             self.remove(base..base + size);
@@ -55,23 +59,29 @@ impl<T: BitAlloc> BitAlloc for BitAllocCascade16<T> {
             None
         }
     }
+
     fn dealloc(&mut self, key: usize) {
         let i = key / T::CAP;
         self.sub[i].dealloc(key % T::CAP);
         self.bitset.set_bit(i, true);
     }
+
     fn insert(&mut self, range: Range<usize>) {
         self.for_range(range, |sub: &mut T, range| sub.insert(range));
     }
+
     fn remove(&mut self, range: Range<usize>) {
         self.for_range(range, |sub: &mut T, range| sub.remove(range));
     }
+
     fn is_empty(&self) -> bool {
         self.bitset == 0
     }
+
     fn test(&self, key: usize) -> bool {
         self.sub[key / T::CAP].test(key % T::CAP)
     }
+
     fn next(&self, key: usize) -> Option<usize> {
         let idx = key / T::CAP;
         (idx..16).find_map(|i| {
@@ -121,6 +131,7 @@ impl BitAlloc for BitAlloc16 {
             None
         }
     }
+
     fn alloc_contiguous(&mut self, size: usize, align_log2: usize) -> Option<usize> {
         if let Some(base) = find_contiguous(self, Self::CAP, size, align_log2) {
             self.remove(base..base + size);
@@ -129,22 +140,28 @@ impl BitAlloc for BitAlloc16 {
             None
         }
     }
+
     fn dealloc(&mut self, key: usize) {
         assert!(!self.test(key));
         self.0.set_bit(key, true);
     }
+
     fn insert(&mut self, range: Range<usize>) {
         self.0.set_bits(range.clone(), 0xffff.get_bits(range));
     }
+
     fn remove(&mut self, range: Range<usize>) {
         self.0.set_bits(range, 0);
     }
+
     fn is_empty(&self) -> bool {
         self.0 == 0
     }
+    
     fn test(&self, key: usize) -> bool {
         self.0.get_bit(key)
     }
+
     fn next(&self, key: usize) -> Option<usize> {
         (key..Self::CAP).find(|&i| self.0.get_bit(i))
     }
