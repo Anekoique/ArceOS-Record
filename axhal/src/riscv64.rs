@@ -1,10 +1,15 @@
 mod boot;
-pub mod console;
+mod context;
 mod lang_items;
-pub mod mem;
-mod misc;
 mod paging;
+
+pub mod console;
+pub mod cpu;
+pub mod mem;
+pub mod misc;
 pub mod time;
+
+pub use context::TaskContext;
 pub use misc::terminate;
 pub use paging::write_page_table_root;
 

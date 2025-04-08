@@ -7,5 +7,5 @@ pub fn current_task_ptr<T>() -> *const T {
 
 #[inline]
 pub unsafe fn set_current_task_ptr<T>(ptr: *const T) {
-    CURRENT_TASK_PTR = ptr as usize
+    unsafe { CURRENT_TASK_PTR = ptr as usize }
 }

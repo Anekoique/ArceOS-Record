@@ -62,6 +62,7 @@ dependencies = [
  "axhal",
  "axlog",
  "axsync",
+ "axtask",
  "page_table",
 ]
 
@@ -72,6 +73,8 @@ dependencies = [
  "axconfig",
  "axhal",
  "axruntime",
+ "axtask",
+ "spinlock",
 ]
 
 [[package]]
@@ -81,6 +84,13 @@ version = "0.1.0"
 [[package]]
 name = "axtask"
 version = "0.1.0"
+dependencies = [
+ "axconfig",
+ "axhal",
+ "axsync",
+ "log",
+ "spinlock",
+]
 
 [[package]]
 name = "bit_field"

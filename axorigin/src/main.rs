@@ -1,44 +1,37 @@
-// axorigin/src/main.rs
 #![no_std]
 #![no_main]
 
-use axstd::{PAGE_SIZE, String, println, time};
+use axstd::{String, Vec, println, thread, time};
 
 #[unsafe(no_mangle)]
-pub fn main(_hartid: usize, _dtb: usize) {
+pub fn main() {
     let now = time::Instant::now();
-    println!("\nNow: {}", now);
 
-    let s = String::from("from String");
-    println!("Hello, ArceOS![{}]", s);
+    let s = String::from("Hello, ArceOS!");
+    println!("{s} Now axstd is okay!");
 
-    try_alloc_pages();
-    try_alloc_long_string();
+    try_alloc_bulk();
+
+    try_multitask();
 
     let d = now.elapsed();
     println!("Elapsed: {}.{:06}", d.as_secs(), d.subsec_micros());
 }
 
-fn try_alloc_pages() {
-    use core::alloc::Layout;
-    extern crate alloc;
-
-    const NUM_PAGES: usize = 300;
-    let layout = Layout::from_size_align(NUM_PAGES * PAGE_SIZE, PAGE_SIZE).unwrap();
-    let p = unsafe { alloc::alloc::alloc(layout) };
-    println!("Allocate pages: [{:?}].", p);
-    unsafe { alloc::alloc::dealloc(p, layout) };
-    println!("Release pages ok!");
+fn try_alloc_bulk() {
+    println!("\nTry alloc bulk memory ...\n");
+    let mut v = Vec::new();
+    for i in 0..0x2000 {
+        v.push(i);
+    }
+    println!("Alloc bulk memory ok!\n");
 }
 
-fn try_alloc_long_string() {
-    use core::alloc::Layout;
-    extern crate alloc;
+fn try_multitask() {
+    println!("Start task...");
 
-    const LENGTH: usize = 0x200000;
-    let layout = Layout::from_size_align(LENGTH, 1).unwrap();
-    let p = unsafe { alloc::alloc::alloc(layout) };
-    println!("Allocate long string: [{:?}].", p);
-    unsafe { alloc::alloc::dealloc(p, layout) };
-    println!("Release long string ok!");
+    let computation = thread::spawn(|| 42);
+
+    let result = computation.join().unwrap();
+    println!("Task gets result: {result}");
 }

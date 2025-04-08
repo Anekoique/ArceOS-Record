@@ -5,7 +5,8 @@ use crate::riscv64::paging;
 unsafe extern "C" fn _start() -> ! {
     // a0 = hartid
     // a1 = dtb
-    core::arch::asm!("
+    unsafe {
+        core::arch::asm!("
         mv      s0, a0                  // save hartid
         mv      s1, a1                  // save DTB pointer
         la a3, _sbss
@@ -27,10 +28,11 @@ unsafe extern "C" fn _start() -> ! {
         add     a2, a2, s2              // readjust rust_entry address
         jalr    a2                      // call rust_entry(hartid, dtb)
         j       .",
-        init_boot_page_table = sym paging::init_boot_page_table,
-        init_mmu = sym paging::init_mmu,
-        phys_virt_offset = const axconfig::PHYS_VIRT_OFFSET,
-        entry = sym super::rust_entry,
-        options(noreturn),
-    )
+            init_boot_page_table = sym paging::init_boot_page_table,
+            init_mmu = sym paging::init_mmu,
+            phys_virt_offset = const axconfig::PHYS_VIRT_OFFSET,
+            entry = sym super::rust_entry,
+            options(noreturn),
+        )
+    }
 }

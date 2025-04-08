@@ -11,3 +11,4 @@ axconfig = { path = "../axconfig" }
 axdtb = { path = "../axdtb" }
 axsync = { path = "../axsync" }
 page_table = { path = "../page_table" }
+axtask = { path = "../axtask" }

@@ -49,6 +49,9 @@ pub extern "C" fn rust_main(hartid: usize, dtb: usize) -> ! {
     for r in free_regions(phys_memory_size) {
         axalloc::final_init(phys_to_virt(r.paddr), r.size);
     }
+
+    axtask::init_scheduler();
+
     unsafe {
         main();
     }
