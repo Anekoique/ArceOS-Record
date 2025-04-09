@@ -95,6 +95,7 @@ dependencies = [
  "axconfig",
  "axhal",
  "axsync",
+ "crate_interface",
  "kernel_guard",
  "log",
  "spinlock",

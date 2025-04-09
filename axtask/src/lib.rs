@@ -4,6 +4,7 @@
 extern crate log;
 extern crate alloc;
 
+use crate::task::CurrentTask;
 use alloc::string::String;
 
 mod run_queue;
@@ -33,4 +34,33 @@ pub fn exit(exit_code: i32) -> ! {
 
 pub fn yield_now() {
     run_queue::RUN_QUEUE.lock().yield_current();
+}
+
+pub fn on_timer_tick() {
+    run_queue::RUN_QUEUE.lock().scheduler_timer_tick();
+}
+
+//
+// For preempt
+//
+
+struct KernelGuardIfImpl;
+
+#[crate_interface::impl_interface]
+impl kernel_guard::KernelGuardIf for KernelGuardIfImpl {
+    fn disable_preempt() {
+        if let Some(curr) = current_may_uninit() {
+            curr.disable_preempt();
+        }
+    }
+
+    fn enable_preempt() {
+        if let Some(curr) = current_may_uninit() {
+            curr.enable_preempt(true);
+        }
+    }
+}
+
+pub fn current_may_uninit() -> Option<CurrentTask> {
+    CurrentTask::try_get()
 }

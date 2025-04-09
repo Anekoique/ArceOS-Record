@@ -205,7 +205,7 @@ fn init_interrupt() {
         update_timer();
         debug!("On timer tick!");
         //#[cfg(feature = "multitask")]
-        //axtask::on_timer_tick();
+        axtask::on_timer_tick();
     });
 
     // Enable IRQs before starting app

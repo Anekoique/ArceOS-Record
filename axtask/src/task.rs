@@ -1,11 +1,13 @@
 use crate::WaitQueue;
-use crate::run_queue::AxRunQueue;
+use crate::run_queue::{AxRunQueue, RUN_QUEUE};
 use alloc::{boxed::Box, string::String, sync::Arc};
 use axconfig::{PAGE_SIZE, align_up};
 use axhal::TaskContext;
 use core::mem::ManuallyDrop;
 use core::ops::Deref;
-use core::sync::atomic::{AtomicBool, AtomicI32, AtomicU8, AtomicU64, Ordering};
+use core::sync::atomic::{
+    AtomicBool, AtomicI32, AtomicIsize, AtomicU8, AtomicU64, AtomicUsize, Ordering,
+};
 use core::{alloc::Layout, cell::UnsafeCell, ptr::NonNull};
 
 pub type AxTaskRef = Arc<Task>;
@@ -31,16 +33,21 @@ pub struct Task {
     entry: Option<*mut dyn FnOnce()>,
     state: AtomicU8,
     in_wait_queue: AtomicBool,
+    need_resched: AtomicBool,
+    preempt_disable_count: AtomicUsize,
     exit_code: AtomicI32,
     wait_for_exit: WaitQueue,
     kstack: Option<TaskStack>,
     ctx: UnsafeCell<TaskContext>,
+    time_slice: AtomicIsize,
 }
 
 unsafe impl Send for Task {}
 unsafe impl Sync for Task {}
 
 impl Task {
+    const MAX_TIME_SLICE: isize = 5;
+
     fn new_common(id: TaskId, name: String) -> Self {
         Self {
             id,
@@ -50,10 +57,13 @@ impl Task {
             entry: None,
             state: AtomicU8::new(TaskState::Ready as u8),
             in_wait_queue: AtomicBool::new(false),
+            need_resched: AtomicBool::new(false),
+            preempt_disable_count: AtomicUsize::new(0),
             exit_code: AtomicI32::new(0),
             wait_for_exit: WaitQueue::new(),
             kstack: None,
             ctx: UnsafeCell::new(TaskContext::new()),
+            time_slice: AtomicIsize::new(Self::MAX_TIME_SLICE),
         }
     }
 
@@ -140,6 +150,51 @@ impl Task {
             .wait_until(|| self.state() == TaskState::Exited);
         Some(self.exit_code.load(Ordering::Acquire))
     }
+    pub(crate) fn set_preempt_pending(&self, pending: bool) {
+        self.need_resched.store(pending, Ordering::Release)
+    }
+
+    #[inline]
+    pub(crate) fn can_preempt(&self, current_disable_count: usize) -> bool {
+        self.preempt_disable_count.load(Ordering::Acquire) == current_disable_count
+    }
+
+    #[inline]
+    pub(crate) fn disable_preempt(&self) {
+        self.preempt_disable_count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    #[inline]
+    pub(crate) fn enable_preempt(&self, resched: bool) {
+        if self.preempt_disable_count.fetch_sub(1, Ordering::Relaxed) == 1 && resched {
+            // If current task is pending to be preempted, do rescheduling.
+            Self::current_check_preempt_pending();
+        }
+    }
+
+    fn current_check_preempt_pending() {
+        let curr = current();
+        if curr.need_resched.load(Ordering::Acquire) && curr.can_preempt(0) {
+            let mut rq = RUN_QUEUE.lock();
+            if curr.need_resched.load(Ordering::Acquire) {
+                rq.preempt_resched();
+            }
+        }
+    }
+
+    pub fn time_slice(&self) -> isize {
+        self.time_slice.load(Ordering::Acquire)
+    }
+
+    pub fn reset_time_slice(&self) {
+        self.time_slice
+            .store(Self::MAX_TIME_SLICE, Ordering::Release);
+    }
+
+    pub fn task_tick(&self) -> bool {
+        let old_slice = self.time_slice.fetch_sub(1, Ordering::Release);
+        old_slice <= 1
+    }
 }
 
 pub struct CurrentTask(ManuallyDrop<AxTaskRef>);
@@ -214,6 +269,10 @@ impl CurrentTask {
         self.0.deref().clone()
     }
 
+    pub fn as_task_ref(&self) -> &AxTaskRef {
+        &self.0
+    }
+
     pub(crate) fn ptr_eq(&self, other: &AxTaskRef) -> bool {
         Arc::ptr_eq(&self.0, other)
     }
@@ -239,6 +298,7 @@ impl Deref for CurrentTask {
 }
 
 extern "C" fn task_entry() -> ! {
+    axhal::irq::enable_irqs();
     let task = current();
     if let Some(entry) = task.entry {
         unsafe { Box::from_raw(entry)() };

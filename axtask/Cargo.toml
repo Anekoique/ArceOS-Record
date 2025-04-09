@@ -10,3 +10,4 @@ axconfig = { path = "../axconfig" }
 axsync = { path = "../axsync" }
 spinlock = { path = "../spinlock" }
 kernel_guard = { path = "../kernel_guard" }
+crate_interface = "0.1.0"
