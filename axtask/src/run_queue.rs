@@ -4,12 +4,12 @@ use crate::{AxTaskRef, WaitQueue};
 use alloc::collections::VecDeque;
 use alloc::sync::Arc;
 use axsync::BootOnceCell;
-use spinlock::SpinRaw;
+use spinlock::SpinNoIrq;
 
-static EXITED_TASKS: SpinRaw<VecDeque<AxTaskRef>> = SpinRaw::new(VecDeque::new());
+static EXITED_TASKS: SpinNoIrq<VecDeque<AxTaskRef>> = SpinNoIrq::new(VecDeque::new());
 static WAIT_FOR_EXIT: WaitQueue = WaitQueue::new();
 
-pub(crate) static RUN_QUEUE: SpinRaw<AxRunQueue> = SpinRaw::new(AxRunQueue::new());
+pub(crate) static RUN_QUEUE: SpinNoIrq<AxRunQueue> = SpinNoIrq::new(AxRunQueue::new());
 static IDLE_TASK: BootOnceCell<AxTaskRef> = BootOnceCell::new();
 
 pub(crate) struct AxRunQueue {

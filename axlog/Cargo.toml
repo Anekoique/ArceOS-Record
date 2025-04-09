@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 crate_interface = "0.1.0"
 log = "0.4.20"
+spinlock = { path = "../spinlock/" }

@@ -5,6 +5,7 @@ pub use axhal::ax_println as println;
 use axhal::mem::{MemRegion, free_regions, kernel_image_regions};
 use axsync::BootOnceCell;
 use page_table::{PAGE_KERNEL_RW, PageTable};
+mod trap;
 
 #[macro_use]
 extern crate axlog;
@@ -50,7 +51,15 @@ pub extern "C" fn rust_main(hartid: usize, dtb: usize) -> ! {
         axalloc::final_init(phys_to_virt(r.paddr), r.size);
     }
 
+    info!("Initialize platform devices...");
+    axhal::platform_init();
+
+    info!("Initialize scheduler...");
     axtask::init_scheduler();
+
+    info!("Initialize interrupt handlers...");
+    #[cfg(all(target_os = "none", not(test)))]
+    init_interrupt();
 
     unsafe {
         main();
@@ -168,4 +177,37 @@ fn parse_dtb(dtb_pa: usize) -> axdtb::DeviceTreeResult<DtbInfo> {
         memory_size: data.memory_size,
         mmio_regions: data.mmio_regions.clone(),
     })
+}
+
+#[cfg(all(target_os = "none", not(test)))]
+fn init_interrupt() {
+    use axhal::irq::TIMER_IRQ_NUM;
+
+    // Setup timer interrupt handler
+    const PERIODIC_INTERVAL_NANOS: u64 =
+        axhal::time::NANOS_PER_SEC / axconfig::TICKS_PER_SEC as u64;
+
+    static mut NEXT_DEADLINE: u64 = 0;
+
+    fn update_timer() {
+        let now_ns = axhal::time::current_time_nanos();
+        // Safety: we have disabled preemption in IRQ handler.
+        let mut deadline = unsafe { NEXT_DEADLINE };
+        if now_ns >= deadline {
+            deadline = now_ns + PERIODIC_INTERVAL_NANOS;
+        }
+        unsafe { NEXT_DEADLINE = deadline + PERIODIC_INTERVAL_NANOS };
+        trace!("now {} deadline {}", now_ns, deadline);
+        axhal::time::set_oneshot_timer(deadline);
+    }
+
+    axhal::irq::register_handler(TIMER_IRQ_NUM, || {
+        update_timer();
+        debug!("On timer tick!");
+        //#[cfg(feature = "multitask")]
+        //axtask::on_timer_tick();
+    });
+
+    // Enable IRQs before starting app
+    axhal::irq::enable_irqs();
 }

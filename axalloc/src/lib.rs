@@ -2,7 +2,7 @@
 use axconfig::PAGE_SIZE;
 use core::alloc::Layout;
 use core::ptr::NonNull;
-use spinlock::SpinRaw;
+use spinlock::SpinNoIrq;
 extern crate alloc;
 use alloc::alloc::GlobalAlloc;
 mod early;
@@ -28,18 +28,18 @@ pub type AllocResult<T = ()> = Result<T, AllocError>;
 static GLOBAL_ALLOCATOR: GlobalAllocator = GlobalAllocator::new();
 
 struct GlobalAllocator {
-    early_alloc: SpinRaw<EarlyAllocator>,
-    page_alloc: SpinRaw<BitmapPageAllocator>,
-    byte_alloc: SpinRaw<BuddyByteAllocator>,
+    early_alloc: SpinNoIrq<EarlyAllocator>,
+    page_alloc: SpinNoIrq<BitmapPageAllocator>,
+    byte_alloc: SpinNoIrq<BuddyByteAllocator>,
     finalized: BootOnceCell<bool>,
 }
 
 impl GlobalAllocator {
     pub const fn new() -> Self {
         Self {
-            early_alloc: SpinRaw::new(EarlyAllocator::uninit_new()),
-            page_alloc: SpinRaw::new(BitmapPageAllocator::new()),
-            byte_alloc: SpinRaw::new(BuddyByteAllocator::new()),
+            early_alloc: SpinNoIrq::new(EarlyAllocator::uninit_new()),
+            page_alloc: SpinNoIrq::new(BitmapPageAllocator::new()),
+            byte_alloc: SpinNoIrq::new(BuddyByteAllocator::new()),
             finalized: BootOnceCell::new(),
         }
     }

@@ -64,7 +64,7 @@ clean:
 		@rm -f ./qemu.log
 
 test:
-		cargo test --workspace --exclude "axorigin" --exclude "axruntime" --exclude "axstd" -- --nocapture
+		cargo test --workspace --exclude "axorigin" --exclude "axruntime" --exclude "axstd" --exclude "kernel_guard" -- --nocapture
 
 test_mod:
 ifndef MOD

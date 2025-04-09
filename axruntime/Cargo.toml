@@ -12,3 +12,5 @@ axdtb = { path = "../axdtb" }
 axsync = { path = "../axsync" }
 page_table = { path = "../page_table" }
 axtask = { path = "../axtask" }
+crate_interface = "0.1.0"
+kernel_guard = { path = "../kernel_guard" }

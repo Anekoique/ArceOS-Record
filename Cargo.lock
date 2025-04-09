@@ -31,7 +31,11 @@ version = "0.1.0"
 dependencies = [
  "axconfig",
  "axlog",
+ "axsync",
  "crate_interface",
+ "handler_table",
+ "kernel_guard",
+ "log",
  "page_table",
  "riscv",
  "sbi-rt",
@@ -43,6 +47,7 @@ version = "0.1.0"
 dependencies = [
  "crate_interface",
  "log",
+ "spinlock",
 ]
 
 [[package]]
@@ -63,6 +68,8 @@ dependencies = [
  "axlog",
  "axsync",
  "axtask",
+ "crate_interface",
+ "kernel_guard",
  "page_table",
 ]
 
@@ -88,6 +95,7 @@ dependencies = [
  "axconfig",
  "axhal",
  "axsync",
+ "kernel_guard",
  "log",
  "spinlock",
 ]
@@ -131,6 +139,18 @@ name = "embedded-hal"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "361a90feb7004eca4019fb28352a9465666b24f840f5c3cddf0ff13920590b89"
+
+[[package]]
+name = "handler_table"
+version = "0.1.0"
+
+[[package]]
+name = "kernel_guard"
+version = "0.1.0"
+dependencies = [
+ "crate_interface",
+ "log",
+]
 
 [[package]]
 name = "log"
@@ -217,6 +237,9 @@ checksum = "e6e36312fb5ddc10d08ecdc65187402baba4ac34585cb9d1b78522ae2358d890"
 [[package]]
 name = "spinlock"
 version = "0.1.0"
+dependencies = [
+ "kernel_guard",
+]
 
 [[package]]
 name = "syn"

@@ -11,7 +11,7 @@ pub fn main() {
     println!("{s} Now axstd is okay!");
 
     try_alloc_bulk();
-
+    raise_break_exception();
     try_multitask();
 
     let d = now.elapsed();
@@ -35,3 +35,11 @@ fn try_multitask() {
     let result = computation.join().unwrap();
     println!("Task gets result: {result}");
 }
+
+fn raise_break_exception() {
+     unsafe {
+         core::arch::asm!("ebreak");
+         core::arch::asm!("nop");
+         core::arch::asm!("nop");
+     }
+ }

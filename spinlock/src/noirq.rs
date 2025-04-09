@@ -1,18 +1,20 @@
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
+use kernel_guard::{BaseGuard, NoPreemptIrqSave};
 
-pub struct SpinRaw<T> {
+pub struct SpinNoIrq<T> {
     data: UnsafeCell<T>,
 }
 
-pub struct SpinRawGuard<T> {
+pub struct SpinNoIrqGuard<T> {
+    irq_state: usize,
     data: *mut T,
 }
 
-unsafe impl<T> Sync for SpinRaw<T> {}
-unsafe impl<T> Send for SpinRaw<T> {}
+unsafe impl<T> Sync for SpinNoIrq<T> {}
+unsafe impl<T> Send for SpinNoIrq<T> {}
 
-impl<T> SpinRaw<T> {
+impl<T> SpinNoIrq<T> {
     #[inline(always)]
     pub const fn new(data: T) -> Self {
         Self {
@@ -22,19 +24,23 @@ impl<T> SpinRaw<T> {
 
     #[inline(always)]
     pub fn into_inner(self) -> T {
-        let SpinRaw { data, .. } = self;
+        let SpinNoIrq { data, .. } = self;
         data.into_inner()
     }
+}
 
+impl<T> SpinNoIrq<T> {
     #[inline(always)]
-    pub fn lock(&self) -> SpinRawGuard<T> {
-        SpinRawGuard {
+    pub fn lock(&self) -> SpinNoIrqGuard<T> {
+        let irq_state = NoPreemptIrqSave::acquire();
+        SpinNoIrqGuard {
+            irq_state,
             data: unsafe { &mut *self.data.get() },
         }
     }
 }
 
-impl<T> Deref for SpinRawGuard<T> {
+impl<T> Deref for SpinNoIrqGuard<T> {
     type Target = T;
     #[inline(always)]
     fn deref(&self) -> &T {
@@ -42,14 +48,16 @@ impl<T> Deref for SpinRawGuard<T> {
     }
 }
 
-impl<T> DerefMut for SpinRawGuard<T> {
+impl<T> DerefMut for SpinNoIrqGuard<T> {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut T {
         unsafe { &mut *self.data }
     }
 }
 
-impl<T> Drop for SpinRawGuard<T> {
+impl<T> Drop for SpinNoIrqGuard<T> {
     #[inline(always)]
-    fn drop(&mut self) {}
+    fn drop(&mut self) {
+        NoPreemptIrqSave::release(self.irq_state);
+    }
 }

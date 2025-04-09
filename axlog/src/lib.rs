@@ -85,5 +85,9 @@ impl Write for Logger {
 }
 
 pub fn print_fmt(args: fmt::Arguments) {
+    use spinlock::SpinNoIrq; // TODO: more efficient
+    static LOCK: SpinNoIrq<()> = SpinNoIrq::new(());
+
+    let _guard = LOCK.lock();
     let _ = Logger.write_fmt(args);
 }
