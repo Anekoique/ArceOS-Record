@@ -40,74 +40,6 @@ pub struct Task {
 unsafe impl Send for Task {}
 unsafe impl Sync for Task {}
 
-pub struct CurrentTask(ManuallyDrop<AxTaskRef>);
-
-pub fn current() -> CurrentTask {
-    CurrentTask::get()
-}
-
-/// The possible states of a task.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub(crate) enum TaskState {
-    Running = 1,
-    Ready = 2,
-    Blocked = 3,
-    Exited = 4,
-}
-
-impl From<u8> for TaskState {
-    #[inline]
-    fn from(state: u8) -> Self {
-        match state {
-            1 => Self::Running,
-            2 => Self::Ready,
-            3 => Self::Blocked,
-            4 => Self::Exited,
-            _ => unreachable!(),
-        }
-    }
-}
-
-struct TaskStack {
-    ptr: NonNull<u8>,
-    layout: Layout,
-}
-
-impl TaskStack {
-    pub fn alloc(size: usize) -> Self {
-        let layout = Layout::from_size_align(size, 16).unwrap();
-        Self {
-            ptr: NonNull::new(unsafe { alloc::alloc::alloc(layout) }).unwrap(),
-            layout,
-        }
-    }
-
-    pub fn top(&self) -> usize {
-        self.ptr.as_ptr() as usize + self.layout.size()
-    }
-}
-
-impl Drop for TaskStack {
-    fn drop(&mut self) {
-        unsafe { alloc::alloc::dealloc(self.ptr.as_ptr(), self.layout) }
-    }
-}
-
-impl Task {
-    pub const fn id(&self) -> TaskId {
-        self.id
-    }
-    pub fn name(&self) -> &str {
-        self.name.as_str()
-    }
-    pub fn join(&self) -> Option<i32> {
-        self.wait_for_exit
-            .wait_until(|| self.state() == TaskState::Exited);
-        Some(self.exit_code.load(Ordering::Acquire))
-    }
-}
-
 impl Task {
     fn new_common(id: TaskId, name: String) -> Self {
         Self {
@@ -133,7 +65,6 @@ impl Task {
         let mut t = Self::new_common(TaskId::new(), name);
         debug!("new task: {}", t.name());
         let kstack = TaskStack::alloc(align_up(stack_size, PAGE_SIZE));
-
         t.entry = Some(Box::into_raw(Box::new(entry)));
         t.ctx.get_mut().init(task_entry as usize, kstack.top());
         t.kstack = Some(kstack);
@@ -196,6 +127,72 @@ impl Task {
     #[inline]
     pub(crate) const unsafe fn ctx_mut_ptr(&self) -> *mut TaskContext {
         self.ctx.get()
+    }
+
+    pub const fn id(&self) -> TaskId {
+        self.id
+    }
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+    pub fn join(&self) -> Option<i32> {
+        self.wait_for_exit
+            .wait_until(|| self.state() == TaskState::Exited);
+        Some(self.exit_code.load(Ordering::Acquire))
+    }
+}
+
+pub struct CurrentTask(ManuallyDrop<AxTaskRef>);
+
+pub fn current() -> CurrentTask {
+    CurrentTask::get()
+}
+
+/// The possible states of a task.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub(crate) enum TaskState {
+    Running = 1,
+    Ready = 2,
+    Blocked = 3,
+    Exited = 4,
+}
+
+impl From<u8> for TaskState {
+    #[inline]
+    fn from(state: u8) -> Self {
+        match state {
+            1 => Self::Running,
+            2 => Self::Ready,
+            3 => Self::Blocked,
+            4 => Self::Exited,
+            _ => unreachable!(),
+        }
+    }
+}
+
+struct TaskStack {
+    ptr: NonNull<u8>,
+    layout: Layout,
+}
+
+impl TaskStack {
+    pub fn alloc(size: usize) -> Self {
+        let layout = Layout::from_size_align(size, 16).unwrap();
+        Self {
+            ptr: NonNull::new(unsafe { alloc::alloc::alloc(layout) }).unwrap(),
+            layout,
+        }
+    }
+
+    pub fn top(&self) -> usize {
+        self.ptr.as_ptr() as usize + self.layout.size()
+    }
+}
+
+impl Drop for TaskStack {
+    fn drop(&mut self) {
+        unsafe { alloc::alloc::dealloc(self.ptr.as_ptr(), self.layout) }
     }
 }
 
