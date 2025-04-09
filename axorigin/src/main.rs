@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+use axstd::sync::Mutex;
 use axstd::{String, Vec, println, thread, time};
 
 #[unsafe(no_mangle)]
@@ -11,7 +12,11 @@ pub fn main() {
     println!("{s} Now axstd is okay!");
 
     try_alloc_bulk();
+
     raise_break_exception();
+
+    test_mutex();
+
     try_multitask();
 
     let d = now.elapsed();
@@ -37,9 +42,38 @@ fn try_multitask() {
 }
 
 fn raise_break_exception() {
-     unsafe {
-         core::arch::asm!("ebreak");
-         core::arch::asm!("nop");
-         core::arch::asm!("nop");
-     }
- }
+    unsafe {
+        core::arch::asm!("ebreak");
+        core::arch::asm!("nop");
+        core::arch::asm!("nop");
+    }
+}
+
+fn test_mutex() {
+    extern crate alloc;
+    use alloc::sync::Arc;
+    let flag = Arc::new(Mutex::new(0));
+    let flag2 = flag.clone();
+
+    thread::spawn(move || {
+        println!("Spawned-thread starts ...");
+        let mut lock = flag2.lock();
+        *lock += 1;
+        println!("Spawned-thread starts ok! {}", *lock);
+    });
+
+    {
+        println!("Main thread set FLAG to notify spawned-thread to continue.");
+        let mut lock = flag.lock();
+        *lock += 1;
+    }
+
+    println!("Main thread waits spawned-thread to respond ...");
+    loop {
+        let lock = flag.lock();
+        if *lock >= 2 {
+            break;
+        }
+    }
+    println!("Mutex test run OK!");
+}

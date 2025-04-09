@@ -4,6 +4,7 @@ extern crate alloc;
 extern crate axruntime;
 
 pub mod io;
+pub mod sync;
 pub mod thread;
 pub mod time;
 

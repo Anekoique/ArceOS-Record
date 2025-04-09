@@ -11,7 +11,7 @@ mod run_queue;
 mod task;
 mod wait_queue;
 
-pub use task::AxTaskRef;
+pub use task::{AxTaskRef, current};
 pub use wait_queue::WaitQueue;
 
 pub fn spawn_raw<F>(f: F, name: String, stack_size: usize) -> AxTaskRef
