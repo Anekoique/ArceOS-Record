@@ -59,4 +59,6 @@ pub trait TrapHandler {
 #[allow(dead_code)]
 pub(crate) fn handle_irq_extern(irq_num: usize) {
     call_interface!(TrapHandler::handle_irq, irq_num);
+
+    // super::irq::dispatch_irq(irq_num);
 }
