@@ -1,6 +1,8 @@
 # ArceOS Record
 
-## Ch0 Hello World
+## Tutorial Record
+
+### Ch0 Hello World
 
 Target：让qemu成功跳转到内核入口，执行指令
 
@@ -20,7 +22,7 @@ Target：让qemu成功跳转到内核入口，执行指令
 └── rust-toolchain.toml
 ```
 
-### 一、启动内核
+#### 一、启动内核
 
 ![启动过程](https://oslearning365.github.io/arceos-tutorial-book/img/%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B.svg)
 
@@ -43,7 +45,7 @@ qemu-riscv启动内核过程
 > // qemu-x86 启动
 > QEMU 启动 → 加载 SeaBIOS（传统 BIOS） → 加载 GRUB（BootLoader） → 解析配置文件 → 加载内核 → 内核运行
 
-### 二、建立内核程序入口
+#### 二、建立内核程序入口
 
 ```toml
 // 准备编译工具链
@@ -119,7 +121,7 @@ qemu-system-riscv64 -m 128M -machine virt -bios default -nographic \
 
 ---
 
-## Ch1 Hello ArceOS
+### Ch1 Hello ArceOS
 
 Target：以组件化方式解耦Unikernel内核，实现输出
 
@@ -151,7 +153,7 @@ Target：以组件化方式解耦Unikernel内核，实现输出
         └── raw.rs
 ```
 
-### 一、Unikernel与组件化
+#### 一、Unikernel与组件化
 
 ![Unikernel与其它形态对比](https://oslearning365.github.io/arceos-tutorial-book/img/Unikernel%E4%B8%8E%E5%85%B6%E5%AE%83%E5%BD%A2%E6%80%81%E5%AF%B9%E6%AF%94.svg)
 
@@ -163,7 +165,7 @@ Microkernel：仅在内核保留最基础功能，其他服务在用户态
 
 组件化：组件作为模块封装功能，提供接口，各个组件构成操作系统的基本元素；以构建 crate 的方式来构建组件，通过 dependencies+features 的方式组合组件->` ArceOS = 组件仓库 + 组合方式 `
 
-### 二、解耦Unikernel
+#### 二、解耦Unikernel
 
 ![最早的组件](https://oslearning365.github.io/arceos-tutorial-book/img/%E6%9C%80%E6%97%A9%E7%9A%84%E7%BB%84%E4%BB%B6.svg)
 
@@ -291,7 +293,7 @@ axhal = { path = "../axhal" }
 
 ```
 
-### 三、组件测试/模块测试
+#### 三、组件测试/模块测试
 
 组件测试相当于 crate 级的测试，直接在 crate 根目录下建立 tests 模块，对组件进行基于公开接口的黑盒测试；模块测试对应于单元测试，在模块内建立子模块tests，对模块的内部方法进行白盒测试
 
@@ -381,7 +383,7 @@ sbi-rt = { version = "0.0.2", features = ["legacy"] }
  8 files changed, 31 insertions(+), 13 deletions(-)
 ```
 
-### 四、添加组件
+#### 四、添加组件
 
 1. 全局配置组件 `axconfig`
 
@@ -495,7 +497,7 @@ sbi-rt = { version = "0.0.2", features = ["legacy"] }
    >
    >   ```rust
    >   use core::cell::UnsafeCell;
-   >                             
+   >                                 
    >   let cell = UnsafeCell::new(42);
    >   let ptr = cell.get(); // 获取 *mut T 裸指针
    >   unsafe { *ptr = 10; } // 允许修改
@@ -545,7 +547,7 @@ sbi-rt = { version = "0.0.2", features = ["legacy"] }
    
 ---
 
-## Ch2 内存管理1
+### Ch2 内存管理1
 
 Target：组织Unikernel为四层系统架构，引入虚拟内存和内存分配
 
@@ -593,7 +595,7 @@ Target：组织Unikernel为四层系统架构，引入虚拟内存和内存分�
         └── raw.rs
 ```
 
-### 一、内核框架构建
+#### 一、内核框架构建
 
 ![主干组件层次](https://oslearning365.github.io/arceos-tutorial-book/img/%E4%B8%BB%E5%B9%B2%E7%BB%84%E4%BB%B6%E5%B1%82%E6%AC%A1.png)
 
@@ -648,7 +650,7 @@ pub fn main(_hartid: usize, _dtb: usize) {
 }
 ```
 
-### 二、引入分页机制
+#### 二、引入分页机制
 
 为什么需要虚拟内存和分页机制：物理地址空间是硬件平台生产构造时就已经确定的，而虚拟地址空间则是内核可以根据实际需要灵活定义和实时改变的，这是将来内核很多重要机制的基础。按照近年来流行的说法，分页机制赋予了内核“软件定义”地址空间的能力。
 
@@ -821,7 +823,7 @@ unsafe extern "C" fn _start() -> ! {
 }
 ```
 
-### 三、启用动态内存分配
+#### 三、启用动态内存分配
 
 在第一部分的框架代码中我们使用了String，但是String的实现需要动态内存分配支持，这本来是rust std库提供的功能，我们需要实现内核级的动态内存堆管理的支持，因此我们引入了axalloc组件，它的初始化在axruntime中完成。
 
@@ -1042,7 +1044,7 @@ impl EarlyAllocator {
 }
 ```
 
-## Ch3 Basic Component
+### Ch3 Basic Component
 
 Target:增加基础组件，扩展子系统
 
@@ -1108,7 +1110,7 @@ Target:增加基础组件，扩展子系统
 
 
 
-### 一、打破循环依赖
+#### 一、打破循环依赖
 
 我们希望在ch3引入axlog日志组件，但是这会出现循环依赖，无法通过编译：组件 axruntime 在初始化时，将会初始化 axhal 和 axlog 这两个组件。对于 axhal 和 axlog 这两个组件来说，一方面，axhal 组件需要日志功能，所以依赖 axlog 组件；与此同时，axlog 必须依赖 axhal 提供的标准输出或写文件功能以实现日志输出，所以 axlog 又反过来依赖 axhal。这就在二者之间形成了循环依赖。
 
@@ -1315,9 +1317,9 @@ impl Parse for CallInterface {
 }
 ```
 
-### 二、其他组件
+#### 二、其他组件
 
-#### axlog
+##### axlog
 
 封装并扩展crate.io中的crate - log。按照 crate log 的实现要求，为 定义的全局日志实例 Logger 实现 trait Log 接口。这个外部的 crate log 本身是一个框架，实现了日志的各种通用功能，但是如何对日志进行输出需要基于所在的环境，这个 trait Log 就是通用功能与环境交互的接口
 
@@ -1369,7 +1371,7 @@ impl Log for Logger {
 }
 ```
 
-#### axdtb
+##### axdtb
 
 内核最初启动时从 SBI 得到两个参数分别在 a0 和 a1 寄存器中。其中 a1 寄存器保存的是 dtb 的开始地址，而 dtb 就是 fdt 的二进制形式，它的全称 device tree blob。由于它已经在内存中放置好，内核启动时就可以直接解析它的内容获取信息。我们引入组件axdtb让内核自己解析 fdt 设备树来获得硬件平台的配置情况，作为后面启动过程的基础
 
@@ -1441,7 +1443,7 @@ impl DeviceTree {
 }
 ```
 
-## Ch4 内存管理2
+### Ch4 内存管理2
 
 Target：实现多级页表和内存分配器，重建地址映射
 
@@ -1511,7 +1513,7 @@ Target：实现多级页表和内存分配器，重建地址映射
         └── raw.rs
 ```
 
-### 一、实现多级页表
+#### 一、实现多级页表
 
 扩展实现Ch2的页表机制，之前的 map 实现十分简单，只是映射了 1G，并且 va/pa 地址以及总长度 total_size 都是按 1G 对齐的。但是如果地址范围可能出现不对齐的情况，这是指开始/结束地址没有按照 best_size 对齐或者总长度就小于 best_size。例如我们期望按照 2M 的粒度进行映射（即 best_size 是 2M，如上图所示），但是起止地址都没有按照 2M 对齐，那就需要把映射范围分成三个部分：把中间按照 2M 对齐的部分截出来，按照 2M 的 best_size 进行映射；把前后两个剩余部分按照 4K 的粒度单独映射.
 
@@ -1582,7 +1584,7 @@ fn map_aligned(
 }
 ```
 
-### 二、页内存分配器
+#### 二、页内存分配器
 
 这一分我们实现一个 bitmap 位分配器，下一步它将作为正式的页分配器的核心，管理内存页的分配与释放。位分配器基于bitmap数据结构，我们可以用每一位 bit 来代表一个内存块，通常 1 表示空闲可用，0 表示已分配；内存块的大小可以根据需要设定，粒度小到字节 byte，大到页面 page。我们对页内存进行层级化管理，形成若干级 bitmap，每一级 bitmap 包含 **16 位**，从上往下，第 1 级只有一个 bitmap，它每一位指向第 2 级的一个 bitmap，共 16 个；如此嵌套，直至最底层 leaf level，leaf level 对应 1M 位，所以包括 64K 个 bitmap（1M / 16 = 64K）。进一步来说，每一级的 bitmap 的 bit 位对应管理着不同数量的连续页空间，第 1 级 bitmap 的一个 bit 位代表 64K 个连续页（1M / 16 = 64K），而最底层 leaf level 上每个 bitmap 的每个 bit 位仅对应一个页。
 
@@ -1664,7 +1666,7 @@ impl BitmapPageAllocator {
 }
 ```
 
-### 三、字节内存分配器
+#### 三、字节内存分配器
 
 我们完成了从早期的页分配器到正式页分配器的切换后继续实现字节分配器，我们将基于经典的伙伴算法（buddy）实现这个内存分配器。关于伙伴算法，简单来说，一个内存块可以分成对等大小、地址连续的两个内存块，它们称为伙伴。当进行内存分配时，如果没有正好符合要求的空闲内存块，则需要对更大的空闲内存块逐级平分，直到划分出符合要求的最小内存块；内存释放时，尝试与它的伙伴进行合并，直至不能合并为止。这个算法兼顾了分配速度和碎片化问题。它的实现原理如下图所示：
 
@@ -1935,7 +1937,7 @@ impl<const ORDER: usize> Default for Heap<ORDER> {
 }
 ```
 
-## Ch5 线程管理
+### Ch5 线程管理
 
 Target: 支持多任务管理与调度
 
@@ -2018,7 +2020,7 @@ Target: 支持多任务管理与调度
         └── raw.rs
 ```
 
-### 一、初始任务
+#### 一、初始任务
 
 我们需要让内核支持任务与调度，任务是被调度的对象，它具有独立的工作逻辑。调度是资源不足时，协调每个请求对资源使用的方法。在 ArceOS 的语境下，任务等价于线程。也就是说，每个任务拥有**独立的执行流**和**独立的栈**，但是它们没有独立的地址空间，而是共享唯一的内核地址空间。
 
@@ -2112,7 +2114,7 @@ impl Task {
 }
 ```
 
-### 二、创建任务
+#### 二、创建任务
 
 前面我们已经让内核的主线程成为第一个任务 MainTask；本节将在 MainTask 的基础上，使用`spawn`创建一个应用级的任务，这个任务可以理解为app的一个线程
 
@@ -2239,7 +2241,7 @@ where
 }
 ```
 
-### 三、任务切换
+#### 三、任务切换
 
 app调用join后MainTask将自己加入wait_queue后使用resched调度app线程
 
@@ -2345,7 +2347,7 @@ unsafe extern "C" fn context_switch(_current_task: &mut TaskContext, _next_task:
 }
 ```
 
-## Ch6 异常和中断
+### Ch6 异常和中断
 
 Target：支持异常处理和中断处理
 
@@ -2436,7 +2438,7 @@ Target：支持异常处理和中断处理
         └── raw.rs
 ```
 
-### 一、异常处理
+#### 一、异常处理
 
 按照 RiscV 规范，异常和中断被触发时，当前的执行流程被打断，跳转到异常向量表中相应的例程进行处理。其中，stvec 寄存器指向的是向量表的基地址，scause 寄存器记录的异常编号则作为例程入口的偏移，二者相加得到异常处理例程的最终地址。
 
@@ -2517,7 +2519,7 @@ pub(crate) fn handle_irq_extern(irq_num: usize) {
 }
 ```
 
-### 二、启用自旋锁
+#### 二、启用自旋锁
 
 在真正开启和处理中断之前，我们首先需要实现真正的自旋锁。
 
@@ -2680,7 +2682,7 @@ impl<T> Drop for SpinNoIrqGuard<T> {
 }
 ```
 
-### 三、启用时钟中断
+#### 三、启用时钟中断
 
 我们首先启用最简单的时钟中断，在axruntime调用`init_interrupt`前首先为启用中断做准备，进行平台初始化（将timer设为0，启用中断后马上发生首次时钟中断），然后调用`init_interrupt`具体是需要提供一个能够处理中断的函数给`register_handler`,`handler`将全局`TIMER_HANDLER`初始化为该函数。中断发生后，trap_handler调用借助crate_interface实现的函数（这里没有理解为什么使用crate_interface,没有发现循环依赖，直接调用函数也可以实现），这个函数调用dispatch_irq，然后再调用`init_interrupt`提供的函数，并设置下次时钟中断的时间
 
@@ -2803,7 +2805,7 @@ pub fn dispatch_irq(scause: usize) {
 }
 ```
 
-## Ch7 抢占式调度
+### Ch7 抢占式调度
 
 Target: 支持抢占调度和mutex锁
 
@@ -2897,7 +2899,7 @@ Target: 支持抢占调度和mutex锁
         └── raw.rs
 ```
 
-### 一、抢占式调度
+#### 一、抢占式调度
 
 ArceOS 中，任务抢占采取的具体策略包括内部条件和外部条件，二者同时具备时，才能触发抢占。内部条件指的是，在任务内部维护的某种状态达到条件，例如本次运行的时间片配额耗尽；外部条件指的是，内核可以在某些阶段，暂时关闭抢占，比如，下步我们的自旋锁就需要在加锁期间关闭抢占，以保证锁范围的原子性。由此可见，这个抢占是兼顾了任务自身状况的，一个正在运行的任务即使是低优先级，在达到内部条件之前，也不会被其它任务抢占。抢占是边沿触发。在内部条件符合的前提下，外部状态从禁止抢占到启用抢占的那个变迁点，会触发一次抢占式重调度 resched。
 
@@ -2983,7 +2985,7 @@ impl task {
 }
 ```
 
-### 二、Mutex锁
+#### 二、Mutex锁
 
 我们在这里实现Mutex锁为app提供同步原语支持线程共享资源，Mutex锁的实现借助wait_queue,在锁被占用的时候将task置入wait_queue直到锁的持有者来唤醒
 
@@ -3038,4 +3040,18 @@ impl<T: ?Sized> Mutex<T> {
     }
 }
 ```
+
+## Main Record
+
+### axalloc
+
+### axtask
+
+### axfs
+
+### axdriver
+
+### axmm
+
+### Appendix A: Makefile
 
