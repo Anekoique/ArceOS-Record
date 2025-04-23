@@ -1,5 +1,11 @@
 # ArceOS Record
 
+ArceOS 的设计可以说优雅而不失健壮性，利用rust优秀的包管理机制和crates的特性组件化地搭建OS，将复杂的OS设计解耦，各个模块功能清晰、层次鲜明，
+
+tutorial出于教学的目的，在modules引入了dependence crates；而在主线arceos中，将解耦做到了极致，形成了清晰的Unikernel层次：dependence crates -> kernel modules -> api -> ulib -> app,下为上提供功能，上到下形成层次鲜明的抽象，这种抽象又为异构内核的实现提供支持，以宏内核为例，其既可以使用api提供的功能，又可以复用kernel modules支持更多的功能，这种自由的复用和组织可以为定制化操作系统提供极大的便利和支持，方便基于需求实现特定OS
+
+![image-20250422012512184](./images/image-20250422012512184.png)
+
 ## Tutorial Record
 
 ### Ch0 Hello World
@@ -48,8 +54,8 @@ qemu-riscv启动内核过程
 #### 二、建立内核程序入口
 
 ```toml
-// 准备编译工具链
-// rust-roolchain.toml
+# 准备编译工具链
+# rust-roolchain.toml
 [toolchain]
 profile = "minimal"
 channel = "nightly"
@@ -58,8 +64,8 @@ targets = ["riscv64gc-unknown-none-elf"]
 ```
 
 ```asm
-// 将内核入口放置在image文件开头
-// linker.lds
+# 将内核入口放置在image文件开头
+# linker.lds
 OUTPUT_ARCH(riscv)
 
 BASE_ADDRESS = 0x80200000;
@@ -273,7 +279,7 @@ macro_rules! ax_println {
 2. 将两个组件进行组合，形成可运行Unikernel
 
 ```toml
-// axhal/Cargo.toml
+# axhal/Cargo.toml
 [package]
 name = "axhal"
 version = "0.1.0"
@@ -282,7 +288,7 @@ edition = "2021"
 [dependencies]
 sbi-rt = { version = "0.0.2", features = ["legacy"] }
 
-// axorigin/Cargo.toml  
+# axorigin/Cargo.toml  
 [package]
 name = "axorigin"
 version = "0.1.0"
@@ -497,7 +503,7 @@ sbi-rt = { version = "0.0.2", features = ["legacy"] }
    >
    >   ```rust
    >   use core::cell::UnsafeCell;
-   >                                 
+   >                                                                 
    >   let cell = UnsafeCell::new(42);
    >   let ptr = cell.get(); // 获取 *mut T 裸指针
    >   unsafe { *ptr = 10; } // 允许修改
@@ -1584,6 +1590,8 @@ fn map_aligned(
 }
 ```
 
+<span id="0"></span>
+
 #### 二、页内存分配器
 
 这一分我们实现一个 bitmap 位分配器，下一步它将作为正式的页分配器的核心，管理内存页的分配与释放。位分配器基于bitmap数据结构，我们可以用每一位 bit 来代表一个内存块，通常 1 表示空闲可用，0 表示已分配；内存块的大小可以根据需要设定，粒度小到字节 byte，大到页面 page。我们对页内存进行层级化管理，形成若干级 bitmap，每一级 bitmap 包含 **16 位**，从上往下，第 1 级只有一个 bitmap，它每一位指向第 2 级的一个 bitmap，共 16 个；如此嵌套，直至最底层 leaf level，leaf level 对应 1M 位，所以包括 64K 个 bitmap（1M / 16 = 64K）。进一步来说，每一级的 bitmap 的 bit 位对应管理着不同数量的连续页空间，第 1 级 bitmap 的一个 bit 位代表 64K 个连续页（1M / 16 = 64K），而最底层 leaf level 上每个 bitmap 的每个 bit 位仅对应一个页。
@@ -1936,6 +1944,8 @@ impl<const ORDER: usize> Default for Heap<ORDER> {
     }
 }
 ```
+
+<span id="2"></span>
 
 ### Ch5 线程管理
 
@@ -2444,6 +2454,17 @@ Target：支持异常处理和中断处理
 
 我们将准备一个符合规范的异常向量表，在异常中断处理前后分别需要保存和恢复原始的上下文，我们称之为异常上下文.与常见的宏内核陷阱处理不同，这段代码没有将栈指针切换到专用的监督者栈，而是继续使用原始栈保存上下文，这是因为arceos的宏内核设计，没有进行用户态和内核态的区分
 
+trap处理流程：
+
+```mermaid
+sequenceDiagram
+    CPU->>Trap入口: 触发中断
+    Trap入口->>Trap分发器: 保存上下文
+    Trap分发器->>IRQ处理表: 查找处理函数
+    IRQ处理表->>设备驱动: 调用注册的handler
+    设备驱动->>Trap返回: 处理完成
+```
+
 ```assembly
 // axhal/src/riscv/trap.S
 .section .text
@@ -2682,9 +2703,13 @@ impl<T> Drop for SpinNoIrqGuard<T> {
 }
 ```
 
+
+
 #### 三、启用时钟中断
 
 我们首先启用最简单的时钟中断，在axruntime调用`init_interrupt`前首先为启用中断做准备，进行平台初始化（将timer设为0，启用中断后马上发生首次时钟中断），然后调用`init_interrupt`具体是需要提供一个能够处理中断的函数给`register_handler`,`handler`将全局`TIMER_HANDLER`初始化为该函数。中断发生后，trap_handler调用借助crate_interface实现的函数（这里没有理解为什么使用crate_interface,没有发现循环依赖，直接调用函数也可以实现），这个函数调用dispatch_irq，然后再调用`init_interrupt`提供的函数，并设置下次时钟中断的时间
+
+<span id="1"></span>
 
 ```rust
 // 中断逻辑调用链:  platform_init(timer = 0) 
@@ -3043,15 +3068,913 @@ impl<T: ?Sized> Mutex<T> {
 
 ## Main Record
 
+主线arceos与tutorial思想相同，但是模块的代码有较大差别，主线arceos借助rust的包管理机制将一些模块支持组件加入到dependence中，可以像学习tutorial一样追踪arceos的启动过程，从runtime的各个初始化操作中追踪各个模块的初始化与具体功能，再过渡到各个模块间的协同配合与api封装为ulib和app提供支持。学习arceos很重要的是建立整体框架，让ai生成框架图可以更好的理解模块内部工作机制和模块间的协调合作；在理解module的框架后，复用arceos提供的api来进行更灵活快速的开发而不需要拘泥与每个模块提供的底层api细节
+
+PS：abstract graph全部由ai生成，给出对应module的设计理念和运行逻辑提示词并让cursor理解代码框架，可以生成逻辑清晰的框架图
+
+### axconfig
+
+通过组件axconfig-gen解析`.axconfig.toml`生成默认config参数
+
+### axruntime
+
+#### abstract graph
+
+```mermaid
+graph TD
+    A[主入口 rust_main] --> B[打印启动LOGO]
+    B --> C[初始化日志系统]
+    C --> E[内存管理初始化]
+    E --> F{是否启用驱动?}
+    F -->|fs/net/display| G[初始化驱动子系统]
+    G --> H[初始化文件系统]
+    G --> I[初始化网络协议栈]
+    G --> J[初始化显示系统]
+    F -->|无驱动需求| K[跳过驱动初始化]
+    H & I & J & K --> L[多核启动管理]
+    L --> M[启动从核]
+    M --> N[等待从核就绪]
+    N --> O[中断控制器配置]
+    O --> P[调用全局构造器]
+    P --> Q[进入应用main函数]
+    
+    subgraph 多核管理
+        L --> R[主核流程]
+        M --> S[从核入口 rust_main_secondary]
+        S --> T[从核内存初始化]
+        T --> U[从核设备初始化]
+        U --> V[从核调度器]
+        V --> W[等待主核同步]
+        W --> X[进入空闲任务]
+    end
+    
+    style A fill:#cff,stroke:#333
+    style G fill:#cdf,stroke:#369
+    style L fill:#ff9,stroke:#f90
+    style S fill:#9f9,stroke:#090
+```
+
+
+
+运行时管理。在内核完成基本的 boot 之后，会将执行流交给运行 时层，初始化内核的各种功能模块，如驱动注册、任务调度队列初始化等，从而构造一个完整的内核运行时。
+
+- `axlog::init()`初始化日志
+
+- `init_allocator`遍历`memory_regions`初始化`global_allocator`(`global_init`)
+- `init_memory_management`初始化内核虚拟地址空间管理与细粒度内核页表
+- `platform_init`arch相关，指定 CPU 可以响应哪些类型的中断
+- `init_scheduler`初始化任务调度(初始化run_queue和timer)
+- `init_drivers`检测并初始化所有设备驱动
+- `init_filesystems`基于`init_drivers`发现的块设备初始化文件系统
+- `init_interrupt`初始化中断，关于中断: [中断处理调用链](#1)
+- `init_tls`在非多任务情况下(unikernel)引入线程局部存储,tls机制允许每个线程拥有自己独立的数据副本
+
+### axhal
+
+硬件抽象层，提供了对硬件平台的抽象和适配，负责 boot 内核、时钟、 异常等硬件平台的细节处理，并为上层提供统一的硬件功能接口。
+
+#### abstract graph
+
+硬件抽象层 分层架构图
+
+总架构：
+
+```mermaid
+%% 总架构图
+graph TD
+    A[axhal硬件抽象层] --> B[平台抽象层 Platform]
+    A --> C[架构实现层 Arch]
+    A --> D[核心HAL层 Core HAL]
+    
+    B --> E[Boot]
+    B --> F[Console]
+    B --> G[IRQ]
+    B --> H[Memory]
+    B --> I[Time]
+    
+    C --> J[aarch64]
+    C --> K[x86_64]
+    C --> L[riscv]
+    C --> M[loongarch64]
+    
+    D --> N[Trap处理]
+    D --> O[上下文管理]
+    D --> P[页表管理]
+    D --> Q[物理内存]
+    D --> R[时钟管理]
+    D --> S[中断控制]
+
+    style A fill:#e6f3ff,stroke:#004c99
+    style B fill:#ffe6e6,stroke:#990000
+    style C fill:#e6ffe6,stroke:#009900
+    style D fill:#fff2cc,stroke:#d6b656
+
+```
+
+核心hal：
+
+```mermaid
+%% 核心HAL层分图
+graph TD
+    
+        D1[Trap处理] --> D11[异常分发]
+        D1 --> D12[IRQ处理表]
+        D1 --> D13[系统调用路由]
+        
+        D2[上下文管理] --> D21[任务上下文]
+        D2 --> D22[用户空间上下文]
+        D2 --> D23[FPU状态保存]
+        
+        D3[页表管理] --> D31[页表根设置]
+        D3 --> D32[TLB刷新]
+        D3 --> D33[地址转换]
+        
+        D4[物理内存] --> D41[内存区域迭代器]
+        D4 --> D42[物理/虚拟转换]
+        
+        D5[时钟管理] --> D51[当前时钟ticks]
+        D5 --> D52[定时器设置]
+        D5 --> D53[忙等待实现]
+        
+        D6[中断控制] --> D61[中断使能]
+        D6 --> D62[处理函数注册]
+    
+    
+    D11 -->|调用| D12
+    D31 -->|影响| D32
+    D51 -->|转换| D52
+```
+
+#### Framework
+
+```shell
+axhal
+├── arch           				# -> 体系结构相关
+├── cpu.rs						#
+├── irq.rs						#
+├── lib.rs						#
+├── mem.rs						#
+├── paging.rs					#
+├── platform					# -> 平台相关
+├── time.rs						#
+├── tls.rs						#
+└── trap.rs						#
+```
+
+Platform：
+
+- `boot.rs`entry point of the kernel,初始化启动栈和启动页表
+- `consolo.rs`借助sbi提供的功能实现控制台输入输出
+- `irq.rs`注册中断处理函数接口，设置platform and arch相关中断号
+- `mem.rs`提供`platform_regions`，被chain调用并调用chain，得到memory_regions
+
+Hal:
+
+- `trap.rs`体系结构相关的trap处理函数，handler由中断向量表设置
+- `context.rs`上下文相关操作，用于调度
+- `macros.rs`定义汇编辅助宏，简化汇编代码的编写
+
+Non-hal and non-platform:
+
+- `trap.rs`借助linkme使用def_trap_handler向全局数组定义trap处理函数，包括`IRQ/PAGE_FAULT/SYSCALL`,用户可以通过`register_trap_handler`注册对应的处理函数
+- `irq.rs`根据中断号设置中断处理表并接受中断号调用处理
+- `paging.rs`设置根页表，提供物理内存操作
+- `mem.rs`定义`memory_regions`，提供地址转换api
+- `time.rs`提供了系统时钟和计时相关的功能，实现忙等待机制
+
+系统调用流程：
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Kernel
+    participant axhal
+    
+    User->>Kernel: 系统调用指令
+    Kernel->>axhal: 保存用户上下文
+    axhal->>axhal: 权限级别切换
+    axhal->>Kernel: 创建TrapFrame
+    Kernel->>处理程序: 分发系统调用
+    处理程序-->>Kernel: 返回结果
+    Kernel->>axhal: 恢复上下文
+    axhal->>User: 返回用户空间
+```
+
+
+
+#### support crates
+
+- linkme
+- handler_table
+- pagetable_multiarch
+
+### axns
+
+Namespace 机制实现，控制资源的隔离和共享
+
+#### abstract graph
+
+```mermaid
+graph TD
+    A[AxNamespace] --> B[全局命名空间]
+    A --> C[线程本地命名空间]
+    
+    B --> D[[axns_resource内存段]]
+    B --> E("alloc: false")
+    B --> F("AxNamespace::global()")
+    
+    C --> G[动态分配内存]
+    C --> H("alloc: true")
+    C --> I("new_thread_local()")
+    C --> J["copy_nonoverlapping(全局资源)"]
+    
+    K[ResArc<T>] --> L[Arc<T>包装]
+    K --> M["init_new()/init_shared()"]
+    
+    N[def_resource!宏] --> O["static资源定义"]
+    O --> D
+    
+    P[线程1] -->|访问| C
+    P -->|修改| Q[独立资源副本]
+    R[线程2] -->|访问| B
+    R -->|修改| S[全局共享资源]
+    
+    style B fill:#e6f3ff,stroke:#004c99
+    style C fill:#e6ffe6,stroke:#009900
+    style K fill:#ffe6e6,stroke:#990000
+    style N fill:#fff2cc,stroke:#d6b656
+
+    subgraph 核心数据结构
+        A
+        K
+    end
+    
+    subgraph 资源存储
+        D
+        G
+    end
+    
+    subgraph 线程隔离
+        P
+        R
+        Q
+        S
+    end
+```
+
+#### Data Structure
+
+```rust
+/// Defines a resource that managed by [`AxNamespace`].
+/// Each resource will be collected into the `axns_resource` section. When  accessed, it /// is either dereferenced from the global namespace or the thread-local namespace 
+/// according to the `thread-local` feature.
+pub struct AxNamespace {
+    base: usize,
+    alloc: bool,
+}
+```
+
+- 全局命名空间:
+
+  - 整个系统只有一个，所有线程共享
+
+  - 直接使用axns_resource内存段中的静态资源
+
+  - 通过AxNamespace::global()创建
+
+  - 不需要额外内存分配(alloc: false)
+
+  - 一个线程修改资源会影响所有线程
+- 线程本地命名空间:
+
+  - 每个线程拥有独立的命名空间实例
+
+  - 只在启用thread-local特性时可用
+
+  - 通过new_thread_local()方法创建
+
+  - 需要动态分配与全局命名空间相同大小的内存
+
+  - 初始值从全局命名空间复制而来(copy_nonoverlapping)
+
+  - 标记为alloc: true，在销毁时会释放内存
+
+  - 线程对资源的修改不会影响其他线程
+
 ### axalloc
 
-### axtask
+实例化内存分配器，负责物理页的分配和回收，支持 Buddy 分配算 法、Slab 分配算法等
 
-### axfs
+#### abstract graph
 
-### axdriver
+```mermaid
+graph TD
+    A[GlobalAllocator] -->|包含| B["SpinNoIrq<DefaultByteAllocator> (字节分配器)"]
+    A -->|包含| C["SpinNoIrq<BitmapPageAllocator> (页分配器)"]
+    
+    B --> D{feature选择}
+    D -->|slab| E[SlabByteAllocator]
+    D -->|buddy| F[BuddyByteAllocator]
+    D -->|tlsf| G[TlsfByteAllocator]
+    
+    C --> H[[BitmapPageAllocator]]
+    H --> I[allocator::Bitmap]
+    H --> J[PAGE_SIZE=4K]
+    
+    A -->|实现| K[core::alloc::GlobalAlloc]
+    K --> L[alloc/dealloc]
+    
+    M[GlobalPage] -->|使用| N[alloc_pages]
+    M -->|使用| O[dealloc_pages]
+    N & O --> C
+    
+    style A fill:#f0f8ff,stroke:#4682b4
+    style D fill:#fffacd,stroke:#daa520
+    style H fill:#e6e6fa,stroke:#9370db
+    style K fill:#f5f5dc,stroke:#deb887
+
+    subgraph 分配器实现层
+        B
+        C
+    end
+    
+    subgraph 算法选择层
+        D
+        E
+        F
+        G
+    end
+    
+    subgraph 标准库接口
+        K
+        L
+    end
+    
+    subgraph 物理页管理
+        H
+        I
+        J
+    end
+```
+
+#### Data Structure
+
+```rust
+//！ It provides [`GlobalAllocator`], which implements the trait
+//! [`core::alloc::GlobalAlloc`]. A static global variable of type
+//! [`GlobalAllocator`] is defined with the `#[global_allocator]` attribute, to
+//! be registered as the standard library’s default allocator.
+pub struct GlobalAllocator {
+    balloc: SpinNoIrq<DefaultByteAllocator>,
+    palloc: SpinNoIrq<BitmapPageAllocator<PAGE_SIZE>>,
+}
+```
+
+使用`Bitmap`作为数据结构实现[页内存分配器](#0)，使用`feature`选择使用`slab`，`buddy`，`tlfs`作为字节内存分配器,通过impl GlobalAlloc实现`alloc`和`dealloc`支持GlobalAllocator
 
 ### axmm
 
+#### abstract graph
+
+```mermaid
+graph TD
+    A[AddrSpace] --> B[va_range: VirtAddrRange]
+    A --> C[areas: MemorySet]
+    A --> D[pt: PageTable]
+    
+    C --> E[MemoryArea]
+    E --> F[Backend]
+    
+    F --> G[Linear]
+    F --> H[Alloc]
+    
+    G -->|固定偏移| I[物理地址计算]
+    H -->|动态分配| J[axalloc全局分配器]
+    
+    A --> K[页表操作]
+    K --> L[page_table_multiarch]
+    
+    M[memory_addr] -->|地址转换| A
+    N[memory_set] -->|区域管理| C
+    
+    style A fill:#e6f3ff,stroke:#004c99
+    style F fill:#ffe6e6,stroke:#990000
+    style G fill:#e6ffe6,stroke:#009900
+    style H fill:#e6ffe6,stroke:#009900
+    style L fill:#fff2cc,stroke:#d6b656
+
+    subgraph axmm模块
+        A
+        B
+        C
+        D
+        E
+        F
+        G
+        H
+    end
+    
+    subgraph 依赖crates
+        L
+        M
+        N
+    end
+```
+
+#### Data structure
+
+```rust
+/// The virtual memory address space.
+pub struct AddrSpace {
+    va_range: VirtAddrRange,
+    areas: MemorySet<Backend>,          // Backend is the method managing areas 
+    pt: PageTable,
+}
+
+/// A unified enum type for different memory mapping backends.
+#[derive(Clone)]
+pub enum Backend {
+    /// Linear mapping backend.
+    Linear {
+        /// `vaddr - paddr`.
+        pa_va_offset: usize,
+    },
+    /// Allocation mapping backend.
+    Alloc {
+        /// Whether to populate the physical frames when creating the mapping.
+        populate: bool,
+    },
+}
+
+impl MappingBackend for Backend {
+    type Addr = VirtAddr;
+    type Flags = MappingFlags;
+    type PageTable = PageTable;
+    ...
+}
+```
+
+`axmm`使用`AddrSpace`管理地址空间，`va_range`记录虚拟地址范围，areas通过`BtreeMap`管理虚拟地址范围内的已映射空间，每个area backend可以使用linear和alloc两种方式进行管理
+
+#### support crates
+
+- memory_addr
+- memory_set
+- page_table_multiarch
+
+```rust
+/// axmm_crates/memory_addr
+
+pub struct AddrRange<A: MemoryAddr> {
+    /// The lower bound of the range (inclusive).
+    pub start: A,
+    /// The upper bound of the range (exclusive).
+    pub end: A,
+}
+
+/// A range of virtual addresses [`VirtAddr`].
+pub type VirtAddrRange = AddrRange<VirtAddr>;
+/// A range of physical addresses [`PhysAddr`].
+pub type PhysAddrRange = AddrRange<PhysAddr>
+
+/// Implement the `MemoryAddr` trait for any type that is `Copy`, `From<usize>`,
+/// `Into<usize>`, and `Ord`.
+impl<T> MemoryAddr for T where T: Copy + From<usize> + Into<usize> + Ord {}
+```
+
+```rust
+/// axmm_crates/memory_set
+
+pub struct MemorySet<B: MappingBackend> {
+    areas: BTreeMap<B::Addr, MemoryArea<B>>,
+}
+
+/// A memory area represents a continuous range of virtual memory with the same
+/// flags.
+///
+/// The target physical memory frames are determined by [`MappingBackend`] and
+/// may not be contiguous.
+pub struct MemoryArea<B: MappingBackend> {
+    va_range: AddrRange<B::Addr>,
+    flags: B::Flags,
+    backend: B,
+}
+```
+
+```rust
+/// page_table_multiarch
+
+/// A generic page table struct for 64-bit platform.
+///
+/// It also tracks all intermediate level tables. They will be deallocated
+/// When the [`PageTable64`] itself is dropped.
+pub struct PageTable64<M: PagingMetaData, PTE: GenericPTE, H: PagingHandler> {
+    root_paddr: PhysAddr,
+    _phantom: PhantomData<(M, PTE, H)>,
+}
+```
+
+### axtask
+
+任务管理模块，定义内核的调度单元结构，并且实现了任务调度的相关功能，如任务创建、任务切换、任务唤醒等。它是内核的核心模块，负责 管理和调度所有的任务
+
+#### abstract graph
+
+```mermaid
+graph TD
+    %% 核心结构
+    AxTask["AxTask (Wrapper)"]
+    TaskInner["TaskInner (核心任务结构)"]
+    AxTaskRef["AxTaskRef (Arc<AxTask>)"]
+    TaskExt["AxTaskExt (任务扩展数据)"]
+    
+    %% 队列和调度器
+    RunQueue["AxRunQueue (运行队列)"]
+    WaitQueue["WaitQueue (等待队列)"]
+    Scheduler["Scheduler (调度器)"]
+    
+    %% 调度器实现
+    FIFO["FIFO调度器 (不可抢占)"]
+    RR["RR调度器 (可抢占)"]
+    CFS["CFS调度器 (可抢占)"]
+    
+    %% 定时器相关
+    TimerList["timer_list (最小堆事件管理)"]
+    Timers["timers模块 (定时器管理)"]
+    
+    %% 关系连接
+    TaskInner -->|包含| TaskExt
+    AxTask -->|封装| TaskInner
+    AxTaskRef -->|Arc包装| AxTask
+    
+    RunQueue -->|管理| AxTaskRef
+    RunQueue -->|使用| Scheduler
+    
+    Scheduler -->|根据feature选择| FIFO
+    Scheduler -->|根据feature选择| RR
+    Scheduler -->|根据feature选择| CFS
+    
+    WaitQueue -->|存储阻塞| AxTaskRef
+    WaitQueue -->|唤醒时通过| RunQueue
+    
+    Timers -->|使用| TimerList
+    Timers -->|设置任务timer_ticket_id| TaskInner
+    TaskInner -->|timer_ticket_id标识定时事件| Timers
+    
+    %% 功能流程
+    InitScheduler[/"init_scheduler()"/]
+    InitScheduler -->|创建| RunQueue
+    RunQueue -->|初始化| IdleTask[/"idle task"/]
+    RunQueue -->|初始化| MainTask[/"main task"/]
+    
+    %% 任务状态转换
+    TaskState{{"任务状态"}}
+    TaskState -->|Running| Running["运行中"]
+    TaskState -->|Ready| Ready["就绪"]
+    TaskState -->|Blocked| Blocked["阻塞"]
+    TaskState -->|Exited| Exited["已退出"]
+    
+    %% 定时器和中断处理
+    InterruptHandler["中断处理"]
+    InterruptHandler -->|时钟中断| Timers
+    Timers -->|超时唤醒| AxTaskRef
+    
+    %% SMP支持
+    SMP["SMP支持"]
+    SMP -->|多核调度| RunQueue
+    RunQueue -->|任务迁移| MigrateTask["任务迁移"]
+    
+    %% 抢占支持
+    Preemption["抢占机制"]
+    RR -->|时间片耗尽| Preemption
+    CFS -->|更高优先级任务| Preemption
+    Preemption -->|设置need_resched| TaskInner
+    
+    %% 任务等待和唤醒
+    WaitTimeout["wait_timeout()"]
+    WaitTimeout -->|设置超时| Timers
+    WaitTimeout -->|阻塞任务| WaitQueue
+    Notify["notify_one/all()"]
+    Notify -->|唤醒任务| WaitQueue
+    WaitQueue -->|取消定时器| Timers
+```
+
+#### Data structure
+
+```rust
+// task.rs
+/// The inner task structure.
+pub struct TaskInner {
+    id: TaskId,
+    name: UnsafeCell<String>,
+    is_idle: bool,
+    is_init: bool,
+
+    entry: Option<*mut dyn FnOnce()>,
+    state: AtomicU8,
+
+    /// CPU affinity mask.
+    cpumask: SpinNoIrq<AxCpuMask>,
+
+    /// Mark whether the task is in the wait queue.
+    in_wait_queue: AtomicBool,
+
+    /// Used to indicate whether the task is running on a CPU.
+    #[cfg(feature = "smp")]
+    on_cpu: AtomicBool,
+
+    /// A ticket ID used to identify the timer event.
+    /// Set by `set_timer_ticket()` when creating a timer event in `set_alarm_wakeup()`,
+    /// expired by setting it as zero in `timer_ticket_expired()`, which is called by `cancel_events()`.
+    #[cfg(feature = "irq")]
+    timer_ticket_id: AtomicU64,
+
+    #[cfg(feature = "preempt")]
+    need_resched: AtomicBool,
+    #[cfg(feature = "preempt")]
+    preempt_disable_count: AtomicUsize,
+
+    exit_code: AtomicI32,
+    wait_for_exit: WaitQueue,
+
+    kstack: Option<TaskStack>,
+    ctx: UnsafeCell<TaskContext>,
+    task_ext: AxTaskExt,
+
+    #[cfg(feature = "tls")]
+    tls: TlsArea,
+}
+
+// runqueue.rs
+percpu_static! {
+    RUN_QUEUE: LazyInit<AxRunQueue> = LazyInit::new(),
+    EXITED_TASKS: VecDeque<AxTaskRef> = VecDeque::new(),
+    WAIT_FOR_EXIT: WaitQueue = WaitQueue::new(),
+    IDLE_TASK: LazyInit<AxTaskRef> = LazyInit::new(),
+    /// Stores the weak reference to the previous task that is running on this CPU.
+    #[cfg(feature = "smp")]
+    PREV_TASK: Weak<crate::AxTask> = Weak::new(),
+}
+/// [`AxRunQueue`] represents a run queue for global system or a specific CPU.
+pub(crate) struct AxRunQueue {
+    /// The ID of the CPU this run queue is associated with.
+    cpu_id: usize,
+    /// The core scheduler of this run queue.
+    /// Since irq and preempt are preserved by the kernel guard hold by `AxRunQueueRef`,
+    /// we just use a simple raw spin lock here.
+    scheduler: SpinRaw<Scheduler>,
+}
+
+// waitqueue.rs
+pub struct WaitQueue {
+    queue: SpinNoIrq<VecDeque<AxTaskRef>>,
+}
+
+pub(crate) type WaitQueueGuard<'a> = SpinNoIrqGuard<'a, VecDeque<AxTaskRef>>
+```
+
+初始化时`init_scheduler`首先初始化运行队列，运行队列初始化一个idle task和一个main task，他们一个作为空闲系统任务,一个作为系统主逻辑入口,[工作流程](#2)
+
+根据feature对每个task使用对应调度方法封装为节点axtask，使用对应scheduler进行调度`fifo`为不可抢占，`rr`和`cfs`为可抢占
+
+中断：main arceos的中断与tutorial类似但是框架组织有所差别使其能够支持smp，tutorial将time_slice直接嵌入在taskinner中，main arceos将其封装为timer_list dependence crate和timer mod，其中timer_list使用最小堆管理事件，timer mod对其功能进行封装，使用timer_ticket_id标示定时器
+
+抢占：根据不同的scheduler进行抢占设置
+
+#### support crates
+
+- timer_list
+- scheduler
+
+
+### axdriver
+
+驱动管理模块，负责接入不同来源的设备，并为用户提供统一的驱 动功能调用接口，如块设备、网络设备和显示设备
+
+#### abstract graph
+
+```mermaid
+graph TD
+    A[应用层] -->|调用| B[init_drivers]
+    B --> C[AllDevices::probe]
+    C --> D[全局设备探测]
+    C --> E[总线设备探测]
+    
+    D -->|for_each_drivers!宏| F[DriverProbe::probe_global]
+    E -->|PCI/MMIO| G[bus模块探测]
+    
+    subgraph axdriver核心结构
+        B --> H[AllDevices]
+        H --> I[AxDeviceContainer<AxNetDevice>]
+        H --> J[AxDeviceContainer<AxBlockDevice>]
+        H --> K[AxDeviceContainer<AxDisplayDevice>]
+    end
+    
+    subgraph 设备容器实现
+        I -->|dyn启用| L[Vec<Box<dyn NetDriverOps>>]
+        I -->|静态类型| M[Option<具体网卡类型>]
+        J -->|dyn启用| N[Vec<Box<dyn BlockDriverOps>>]
+        J -->|静态类型| O[Option<具体块设备类型>]
+    end
+    
+    subgraph 驱动注册
+        F --> P[register_net_driver!]
+        F --> Q[register_block_driver!]
+        P --> R[VirtioNet/Ixgbe/FXmac]
+        Q --> S[VirtioBlk/RamDisk]
+    end
+    
+    G -->|PCI总线扫描| T[pci.rs]
+    G -->|MMIO设备树解析| U[mmio.rs]
+    T --> V[配置PCI BAR空间]
+    U --> W[映射MMIO区域]
+    
+    style B fill:#e6f3ff,stroke:#004c99
+    style H fill:#e6f3ff,stroke:#004c99
+    style I fill:#e6f3ff,stroke:#004c99
+    style T fill:#ffe6e6,stroke:#990000
+    style U fill:#ffe6e6,stroke:#990000
+```
+
+#### Data structure
+
+```rust
+/// A structure that contains all device drivers, organized by their category.
+#[derive(Default)]
+pub struct AllDevices {
+    /// All network device drivers.
+    #[cfg(feature = "net")]
+    pub net: AxDeviceContainer<AxNetDevice>,
+    /// All block device drivers.
+    #[cfg(feature = "block")]
+    pub block: AxDeviceContainer<AxBlockDevice>,
+    /// All graphics device drivers.
+    #[cfg(feature = "display")]
+    pub display: AxDeviceContainer<AxDisplayDevice>,
+}
+
+pub struct AxDeviceContainer<D>(Option<D>)  // static
+pub struct AxDeviceContainer<D>(Vec<D>)  // dyn
+```
+
+`AxDeviceContainer`包含特定类别的设备驱动结构体。如果启用了 `dyn` 功能，则内部类型为 [`Vec<D>`]。否则内部类型为 [`Option<D>`]，并且最多可包含一个设备;static静态分发的类型定义通过`register_drivers`宏实现，dyn动态分发的类型定义通过Box封装trait对象
+
+初始化时先使用`for each drivers`和`probe_global`初始化全局设备驱动，再通过`        self.probe_bus_devices()`初始化总线设备
+
+> [!CAUTION]
+>
+> 静态分发 (static.rs)
+>
+> - 使用具体类型：type AxNetDevice = 特定设备类型
+>
+> - 一个类别最多只能有一个设备：AxDeviceContainer<D>(Option<D>)
+>
+> - 编译时确定，性能更好，但灵活性低
+>
+> 动态分发 (dyn.rs)
+>
+> - 使用trait对象：type AxNetDevice = Box<dyn NetDriverOps>
+>
+> - 支持多个同类设备：AxDeviceContainer<D>(Vec<D>)
+>
+> - 运行时多态，更灵活但有性能开销
+>
+> | 特征         | 全局设备               | 总线设备                   |
+> | ------------ | ---------------------- | -------------------------- |
+> | 硬件连接方式 | 板载集成               | 通过PCI/PCIe/USB等总线连接 |
+> | 地址发现机制 | 固定地址或配置文件指定 | 通过总线枚举发现           |
+> | 典型设备示例 | RAM磁盘、GPIO控制器    | 网卡、显卡、USB控制器      |
+> | 热插拔支持   | 不支持                 | 支持（依赖总线类型）       |
+> | 代码复杂度   | 较低（直接初始化）     | 较高（需要处理总线协议）   |
+>
+> | 特征         | MMIO                            | PCI                   |
+> | ------------ | ------------------------------- | --------------------- |
+> | 发现机制     | 预定义内存区域扫描              | 总线枚举+配置空间读取 |
+> | 地址分配     | 固定物理地址                    | 动态分配BAR空间       |
+> | 配置方式     | 直接内存读写                    | 通过配置空间寄存器    |
+> | 典型应用场景 | 嵌入式系统/VirtIO虚拟设备       | 物理服务器/标准PC硬件 |
+> | 设备识别     | 魔数检查（如0x74726976="virt"） | 厂商ID+设备ID检查     |
+> | 中断配置     | 通常固定中断号                  | MSI/MSI-X动态中断分配 |
+
+
+#### support crates
+
+- axdriver_base
+
+### axfs
+
+文件系统模块，负责接入不同来源的文件系统，并为用户提供统一的 文件系统功能调用接口，如文件读写、目录操作等。
+
+#### abstract graph
+
+```mermaid
+graph TD
+    A[应用层] -->|系统调用| B(api模块)
+    B -->|封装操作| C(fops模块)
+    C -->|路径解析| D(root模块)
+    D -->|主文件系统| E1(fatfs/lwext4)
+    D -->|挂载管理| E2(devfs)
+    D -->|挂载管理| E3(ramfs)
+    D -->|挂载管理| E4(procfs)
+    E1 -->|块设备操作| F(dev模块)
+    E2 -->|虚拟设备| F
+    E3 -->|内存管理| F
+    C -->|权限检查| G[Capability系统]
+    D -->|VFS接口| H[VFS抽象层]
+    H -->|具体实现| E1
+    H -->|具体实现| E2
+    H -->|具体实现| E3
+    F -->|硬件交互| I[块设备驱动]
+    
+    classDef box fill:#e6f3ff,stroke:#004c99;
+    class A,B,C,D,E1,E2,E3,E4,F,G,H,I box;
+```
+
+#### Data structure
+
+```rust
+// root.rs
+struct MountPoint {
+    path: &'static str,
+    fs: Arc<dyn VfsOps>,
+}
+
+struct RootDirectory {
+    main_fs: Arc<dyn VfsOps>,
+    mounts: RwLock<Vec<MountPoint>>,
+}
+
+static ROOT_DIR: LazyInit<Arc<RootDirectory>> = LazyInit::new()
+
+// dev.rs
+/// A disk device with a cursor.
+pub struct Disk {
+    block_id: u64,
+    offset: usize,
+    dev: AxBlockDevice,
+}
+
+// fops.rs
+/// An opened file object, with open permissions and a cursor.
+pub struct File {
+    node: WithCap<VfsNodeRef>,
+    is_append: bool,
+    offset: u64,
+}
+
+/// An opened directory object, with open permissions and a cursor for
+/// [`read_dir`](Directory::read_dir).
+pub struct Directory {
+    node: WithCap<VfsNodeRef>,
+    entry_idx: usize,
+}
+```
+
+axfs基于axdriver初始化得到的块设备进行初始化，根据指定的feature初始化ROOT_DIR,再基于已经实现的devfs 
+ramfs  procfs在根目录挂载一些初始目录
+
+具体的文件系统实现基于已经实现的axfs_vfs crates,其提供了对文件操作VfsOps和VfsNodeOps的上层抽象，再通过复用已有的文件系统，并对其封装vfs操作，使其适配arceos
+
+具体核心操作抽象层,具体实现在fops.rs中，其定义了`struct file` 和 `struct directory`向上提供标准API，向下对接具体文件系统实现是文件系统的核心枢纽
+
+#### support crates
+
+- axfs_vfs
+- axfs_devfs
+- axfs_ramfs
+- fatfs
+- lwext4_rust
+
+### axnet
+
+网络兼容模块，通过调用网络设备的功能，来实现网络协议栈对内核 的兼容，并为上层提供统一的网络功能调用接口。
+
+### axdma
+
+提供符合DMA硬件要求的物理连续、缓存一致的内存区域。DMA控制器需直接访问物理连续的内存块，确保无需CPU分页即可传输数据。同时处理CPU虚拟地址、物理地址与设备总线地址之间的映射关系。为ixgbe等驱动的实现提供支持
+
+### axsync
+
+同步原语模块，它基于 axtask 模块，提供了对内核的同步原语的支 持，如信号量、互斥锁、读写锁等
+
+#### support crates
+
+- kspin
+
+### axlog
+
+日志组件
+
 ### Appendix A: Makefile
 
+### Appendix B: Linker.lds.S
+
+| 段名         | 内容                  | 起始符号             | 结束符号           | 对齐 |
+| :----------- | :-------------------- | :------------------- | :----------------- | :--- |
+| .text        | 代码（指令）          | `_stext`             | `_etext`           | 4KB  |
+| .rodata      | 只读数据              | `_srodata`           | `_erodata`         | 4KB  |
+| .init_array  | 初始化函数数组        | `__init_array_start` | `__init_array_end` | 16B  |
+| .data        | 已初始化数据          | `_sdata`             | `_edata`           | 4KB  |
+| .tdata/.tbss | 线程本地存储          | `_stdata`/`_stbss`   | `_etdata`/`_etbss` | 16B  |
+| .percpu      | 每 CPU 数据           | `_percpu_start`      | `_percpu_end`      | 64B  |
+| .bss         | 未初始化数据 + 启动栈 | `_sbss`              | `_ebss`            | 4KB  |
